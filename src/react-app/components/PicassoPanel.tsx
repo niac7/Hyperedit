@@ -87,7 +87,7 @@ export default function PicassoPanel({
     setIsGenerating(true);
 
     try {
-      const response = await fetch(`http://localhost:3333/session/${sessionId}/generate-image`, {
+      const response = await fetch(`/session/${sessionId}/generate-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -283,7 +283,7 @@ export default function PicassoPanel({
                             className="relative rounded-lg overflow-hidden bg-zinc-900"
                           >
                             <img
-                              src={`http://localhost:3333${image.streamUrl}`}
+                              src={`${image.streamUrl}`}
                               alt={image.filename}
                               className="w-full h-auto"
                               loading="lazy"

@@ -565,7 +565,7 @@ export default function Home() {
     console.log('Command:', command);
 
     // Call the server to process the video with FFmpeg
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/process-asset`, {
+    const response = await fetch(`/session/${session.sessionId}/process-asset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -641,7 +641,7 @@ export default function Home() {
     console.log('Generating chapters and making cuts...');
 
     // Generate chapters using the session API
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/chapters`, {
+    const response = await fetch(`/session/${session.sessionId}/chapters`, {
       method: 'POST',
     });
 
@@ -671,7 +671,7 @@ export default function Home() {
     console.log('Cut timestamps:', cutTimestamps);
 
     // Get current project state from server
-    const projectResponse = await fetch(`http://localhost:3333/session/${session.sessionId}/project`);
+    const projectResponse = await fetch(`/session/${session.sessionId}/project`);
     const projectData = await projectResponse.json();
     let currentClips: TimelineClip[] = projectData.clips || [];
 
@@ -725,7 +725,7 @@ export default function Home() {
 
     // Save the modified clips directly to server
     if (cutsApplied > 0) {
-      await fetch(`http://localhost:3333/session/${session.sessionId}/project`, {
+      await fetch(`/session/${session.sessionId}/project`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...projectData, clips: currentClips }),
@@ -755,7 +755,7 @@ export default function Home() {
     }
 
     // Call the transcribe-and-extract endpoint
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/transcribe-and-extract`, {
+    const response = await fetch(`/session/${session.sessionId}/transcribe-and-extract`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -793,7 +793,7 @@ export default function Home() {
     }
 
     // Call the generate-broll endpoint
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/generate-broll`, {
+    const response = await fetch(`/session/${session.sessionId}/generate-broll`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -843,12 +843,12 @@ export default function Home() {
     // Actually, let's just save directly to server and reload
 
     // Save clips directly to server
-    const projectResponse = await fetch(`http://localhost:3333/session/${session.sessionId}/project`);
+    const projectResponse = await fetch(`/session/${session.sessionId}/project`);
     const projectData = await projectResponse.json();
 
     const updatedClips = [...(projectData.clips || []), ...newClips];
 
-    await fetch(`http://localhost:3333/session/${session.sessionId}/project`, {
+    await fetch(`/session/${session.sessionId}/project`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -881,7 +881,7 @@ export default function Home() {
 
     // Call the remove-dead-air endpoint
     // -26dB catches real pauses, 0.4s avoids cutting natural speech rhythm
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/remove-dead-air`, {
+    const response = await fetch(`/session/${session.sessionId}/remove-dead-air`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -944,7 +944,7 @@ export default function Home() {
     }
 
     // Call the transcribe endpoint
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/transcribe`, {
+    const response = await fetch(`/session/${session.sessionId}/transcribe`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ assetId: videoAsset.id }),
@@ -1052,7 +1052,7 @@ export default function Home() {
 
     try {
       // Call the server to render the motion graphic
-      const response = await fetch(`http://localhost:3333/session/${session.sessionId}/render-motion-graphic`, {
+      const response = await fetch(`/session/${session.sessionId}/render-motion-graphic`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1119,7 +1119,7 @@ export default function Home() {
       console.log(`[Animation] Creating with video context: ${videoAssetId || 'none'}, time range: ${startTime !== undefined ? `${startTime}s` : 'auto'}${endTime !== undefined ? ` - ${endTime}s` : ''}${attachedAssetIds?.length ? `, attached assets: ${attachedAssetIds.length}` : ''}${durationSeconds ? `, duration: ${durationSeconds}s` : ''}`);
 
       // Call the server to generate AI animation with video context
-      const response = await fetch(`http://localhost:3333/session/${session.sessionId}/generate-animation`, {
+      const response = await fetch(`/session/${session.sessionId}/generate-animation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1210,7 +1210,7 @@ export default function Home() {
     // Debug: log the time range being sent to server
     console.log('[DEBUG] Sending analyze-for-animation with timeRange:', JSON.stringify(request.timeRange));
 
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/analyze-for-animation`, {
+    const response = await fetch(`/session/${session.sessionId}/analyze-for-animation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1250,7 +1250,7 @@ export default function Home() {
       throw new Error('Please upload a video first to start a session');
     }
 
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/render-from-concept`, {
+    const response = await fetch(`/session/${session.sessionId}/render-from-concept`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1313,7 +1313,7 @@ export default function Home() {
       throw new Error('Please upload a video first to start a session');
     }
 
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/generate-transcript-animation`, {
+    const response = await fetch(`/session/${session.sessionId}/generate-transcript-animation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1352,7 +1352,7 @@ export default function Home() {
       throw new Error('Please upload a video first to start a session');
     }
 
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/generate-batch-animations`, {
+    const response = await fetch(`/session/${session.sessionId}/generate-batch-animations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1405,7 +1405,7 @@ export default function Home() {
       throw new Error('No video asset found');
     }
 
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/extract-audio`, {
+    const response = await fetch(`/session/${session.sessionId}/extract-audio`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1462,7 +1462,7 @@ export default function Home() {
       // 2. Analyze the content with AI
       // 3. Generate Remotion code based on the content
       // 4. Render the animation
-      const response = await fetch(`http://localhost:3333/session/${session.sessionId}/generate-contextual-animation`, {
+      const response = await fetch(`/session/${session.sessionId}/generate-contextual-animation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1548,7 +1548,7 @@ export default function Home() {
         duration: a.duration,
       }));
 
-    const response = await fetch(`http://localhost:3333/session/${session.sessionId}/edit-animation`, {
+    const response = await fetch(`/session/${session.sessionId}/edit-animation`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

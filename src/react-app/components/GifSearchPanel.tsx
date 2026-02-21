@@ -24,7 +24,7 @@ interface GifSearchPanelProps {
   }) => void;
 }
 
-const LOCAL_FFMPEG_URL = 'http://localhost:3333';
+const LOCAL_FFMPEG_URL = '';
 
 export default function GifSearchPanel({ sessionId, onClose, onGifAdded }: GifSearchPanelProps) {
   const [searchQuery, setSearchQuery] = useState('');

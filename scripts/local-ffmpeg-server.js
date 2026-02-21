@@ -33,7 +33,165 @@ if (process.env.FAL_API_KEY && !process.env.FAL_KEY) {
   process.env.FAL_KEY = process.env.FAL_API_KEY;
 }
 
-const PORT = 3333;
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+const FFMPEG_API_PORT = 3333; // Internal alias kept for clarity
+
+// MIME types for static file serving
+const MIME_TYPES = {
+  '.html': 'text/html',
+  '.js': 'application/javascript',
+  '.mjs': 'application/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+  '.ttf': 'font/ttf',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+};
+
+// Resolve the dist-standalone directory relative to the project root
+const DIST_DIR = join(new URL('.', import.meta.url).pathname, '..', 'dist-standalone');
+
+// In-memory store for AI edit jobs
+const aiEditJobs = new Map();
+
+// Serve static files from the built frontend
+function serveStaticFile(req, res, urlPath) {
+  // Normalize path
+  let filePath = urlPath === '/' ? '/index.html' : urlPath;
+  // Strip query string
+  filePath = filePath.split('?')[0];
+
+  const fullPath = join(DIST_DIR, filePath);
+
+  // Security: ensure we stay within DIST_DIR
+  if (!fullPath.startsWith(DIST_DIR)) {
+    res.writeHead(403);
+    res.end('Forbidden');
+    return;
+  }
+
+  if (existsSync(fullPath) && statSync(fullPath).isFile()) {
+    const ext = filePath.substring(filePath.lastIndexOf('.'));
+    const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': contentType, 'Access-Control-Allow-Origin': '*' });
+    createReadStream(fullPath).pipe(res);
+  } else {
+    // SPA fallback: serve index.html for all unknown routes
+    const indexPath = join(DIST_DIR, 'index.html');
+    if (existsSync(indexPath)) {
+      res.writeHead(200, { 'Content-Type': 'text/html', 'Access-Control-Allow-Origin': '*' });
+      createReadStream(indexPath).pipe(res);
+    } else {
+      res.writeHead(404);
+      res.end('Not found');
+    }
+  }
+}
+
+// AI Edit: start async job
+async function handleAiEditStart(req, res) {
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', async () => {
+    try {
+      const { prompt } = JSON.parse(body);
+      if (!prompt) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Prompt is required' }));
+        return;
+      }
+      const jobId = randomUUID();
+      aiEditJobs.set(jobId, { status: 'processing' });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ jobId, status: 'processing' }));
+      // Process in background
+      (async () => {
+        try {
+          const apiKey = process.env.GEMINI_API_KEY;
+          if (!apiKey || apiKey.startsWith('placeholder')) {
+            aiEditJobs.set(jobId, { status: 'error', error: 'GEMINI_API_KEY not configured' });
+            return;
+          }
+          const ai = new GoogleGenAI({ apiKey });
+          const response = await ai.models.generateContent({
+            model: 'gemini-2.0-flash',
+            contents: prompt,
+            config: {
+              systemInstruction: `You are a video editing AI assistant. Generate FFmpeg commands for the user's request. Always use "input.mp4" as input and "output.mp4" as output. Return valid JSON: {"command": "ffmpeg command", "explanation": "simple explanation"}`,
+              responseMimeType: 'application/json',
+            },
+          });
+          const text = response.text || '{}';
+          let result;
+          try { result = JSON.parse(text); } catch { result = { command: '', explanation: 'Failed to parse response' }; }
+          aiEditJobs.set(jobId, { status: 'complete', ...result });
+        } catch (err) {
+          aiEditJobs.set(jobId, { status: 'error', error: err.message });
+        }
+      })();
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
+}
+
+// AI Edit: check job status
+function handleAiEditStatus(res, jobId) {
+  const job = aiEditJobs.get(jobId);
+  if (!job) {
+    res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ error: 'Job not found' }));
+    return;
+  }
+  if (job.status === 'complete' || job.status === 'error') {
+    aiEditJobs.delete(jobId);
+  }
+  res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+  res.end(JSON.stringify(job));
+}
+
+// AI Edit: legacy synchronous endpoint
+async function handleAiEditLegacy(req, res) {
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', async () => {
+    try {
+      const { prompt } = JSON.parse(body);
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey || apiKey.startsWith('placeholder')) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'GEMINI_API_KEY not configured' }));
+        return;
+      }
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+        config: { systemInstruction: 'Generate FFmpeg command as JSON: {"command": "...", "explanation": "..."}', responseMimeType: 'application/json' },
+      });
+      const text = response.text || '{}';
+      let result;
+      try { result = JSON.parse(text); } catch { result = { command: '', explanation: 'Failed to parse' }; }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ success: true, ...result }));
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err.message }));
+    }
+  });
+}
 const TEMP_DIR = join(tmpdir(), 'hyperedit-ffmpeg');
 const SESSIONS_DIR = join(TEMP_DIR, 'sessions');
 
@@ -7803,11 +7961,19 @@ const server = http.createServer(async (req, res) => {
   } else if (req.method === 'POST' && path === '/generate-chapters') {
     await handleGenerateChapters(req, res);
   } else if (req.method === 'GET' && path === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify({ status: 'ok', ffmpeg: 'native', sessions: sessions.size }));
+  // AI edit API routes (replaces Cloudflare Worker)
+  } else if (req.method === 'POST' && path === '/api/ai-edit/start') {
+    await handleAiEditStart(req, res);
+  } else if (req.method === 'GET' && path.startsWith('/api/ai-edit/status/')) {
+    const jobId = path.replace('/api/ai-edit/status/', '');
+    handleAiEditStatus(res, jobId);
+  } else if (req.method === 'POST' && path === '/api/ai-edit') {
+    await handleAiEditLegacy(req, res);
+  // Serve static frontend files (SPA)
   } else {
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Not found' }));
+    serveStaticFile(req, res, path);
   }
 });
 
